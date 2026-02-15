@@ -7,7 +7,7 @@ from pymongo import MongoClient
 # --- CONFIGURATION ---
 BOT_TOKEN = "8566036790:AAEiTX8EI9NjyxvxZBQUOxlq0xnNieEX-sM"
 ADMIN_ID = 6169350961  # Apna numeric ID yahan likhein
-MONGO_URL = "mongodb+srv://haryanasarkaar7_db_user:Harshit%40123@cluster0.1yid7so.mongodb.net/?appName=Cluster0"
+MONGO_URL = "mongodb+srv://haryanasarkaar7_db_user:Harshit%40123@cluster0.lyid7so.mongodb.net/?retryWrites=true&w=majority&tlsAllowInvalidCertificates=true"
 
 # MongoDB Setup
 client = MongoClient(MONGO_URL)
@@ -130,5 +130,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
