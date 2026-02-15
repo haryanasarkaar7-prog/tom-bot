@@ -2,89 +2,70 @@ import logging
 import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from pymongo import MongoClient
 
 # --- CONFIGURATION ---
 BOT_TOKEN = "8566036790:AAEiTX8EI9NjyxvxZBQUOxlq0xnNieEX-sM"
-ADMIN_ID = 6169350961  # Apna numeric ID yahan likhein
-MONGO_URL = "mongodb+srv://haryanasarkaar7_db_user:<db_password>@cluster0.1yid7so.mongodb.net/?appName=Cluster0"
-# MongoDB Setup
-client = MongoClient(MONGO_URL)
-db = client['tom_bot_db']
-users_col = db['users']
-banned_col = db['banned_users']
+ADMIN_ID = 6169350961  # Aapka ID jo screenshot mein dikha tha
+
+# Temporary Storage (Server restart par ye reset ho jayega)
+users_list = set()
+banned_users = set()
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-
-# Functions for DB
-def save_user(user_id):
-    if not users_col.find_one({"user_id": user_id}):
-        users_col.insert_one({"user_id": user_id})
-
-def is_banned(user_id):
-    return banned_col.find_one({"user_id": user_id}) is not None
 
 # 1. Start Command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if is_banned(user_id): return
-    save_user(user_id)
-    await update.message.reply_text("Welcome to Tom Bot! 🤖/nHow Mat I Help You Bro ?.")
+    if user_id in banned_users: return
+    users_list.add(user_id)
+    await update.message.reply_text("Welcome to Tom Bot! 🤖")
 
-# 2. Ban Command (Reply to user message)
+# 2. Ban Command (Reply to a message)
 async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
     if update.message.reply_to_message:
         try:
             reply_text = update.message.reply_to_message.text or update.message.reply_to_message.caption
             target_id = int(reply_text.split("🆔 ID: ")[1].split("\n")[0])
-            if not is_banned(target_id):
-                banned_col.insert_one({"user_id": target_id})
-                await update.message.reply_text(f"🚫 User {target_id} has been BANNED.")
-            else:
-                await update.message.reply_text("User is already banned.")
+            banned_users.add(target_id)
+            await update.message.reply_text(f"🚫 User {target_id} has been BANNED.")
         except:
-            await update.message.reply_text("❌ Error: Could not find User ID.")
+            await update.message.reply_text("❌ Error: ID nahi mili.")
 
-# 3. Unban Command (Reply to user message)
+# 3. Unban Command
 async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
     if update.message.reply_to_message:
         try:
             reply_text = update.message.reply_to_message.text or update.message.reply_to_message.caption
             target_id = int(reply_text.split("🆔 ID: ")[1].split("\n")[0])
-            banned_col.delete_one({"user_id": target_id})
-            await update.message.reply_text(f"✅ User {target_id} has been UNBANNED.")
+            if target_id in banned_users:
+                banned_users.remove(target_id)
+                await update.message.reply_text(f"✅ User {target_id} has been UNBANNED.")
         except:
-            await update.message.reply_text("❌ Error: Could not find User ID.")
+            await update.message.reply_text("❌ Error: ID nahi mili.")
 
-# 4. Main Handler (Message Forwarding + Reply)
+# 4. Main Message Handler
 async def handle_incoming(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    if user_id in banned_users: return
+
     name = update.effective_user.first_name
     username = f"@{update.effective_user.username}" if update.effective_user.username else "No Username"
     user_link = f"tg://user?id={user_id}"
 
-    # Check if user is banned
-    if is_banned(user_id):
-        return
-
-    # Admin Reply Logic
     if user_id == ADMIN_ID:
         if update.message.reply_to_message:
-            # Agar reply mein command (/ban, /unban) hai toh forwarding skip karein
             if update.message.text in ["/ban", "/unban"]: return
             try:
                 reply_text = update.message.reply_to_message.text or update.message.reply_to_message.caption
                 target_id = int(reply_text.split("🆔 ID: ")[1].split("\n")[0])
                 await update.message.copy(chat_id=target_id)
                 await update.message.reply_text("✅ Sent!")
-            except:
-                pass
+            except: pass
         return
 
-    # User to Admin Forwarding
-    save_user(user_id)
+    users_list.add(user_id)
     header = (
         f"📩 **NEW MESSAGE**\n\n"
         f"👤 **Name:** {name}\n"
@@ -101,12 +82,11 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
     msg = " ".join(context.args)
     if not msg: return
-    users = users_col.find()
     count = 0
-    for u in users:
+    for u_id in list(users_list):
         try:
-            if not is_banned(u['user_id']):
-                await context.bot.send_message(chat_id=u['user_id'], text=f"📢 **MESSAGE**\n\n{msg}", parse_mode='Markdown')
+            if u_id not in banned_users:
+                await context.bot.send_message(chat_id=u_id, text=f"📢 **BROADCAST**\n\n{msg}", parse_mode='Markdown')
                 count += 1
         except: continue
     await update.message.reply_text(f"✅ Broadcast to {count} users done!")
@@ -129,8 +109,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
