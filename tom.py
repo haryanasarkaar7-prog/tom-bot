@@ -13,7 +13,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 # 1. Welcome Message
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome to Tom Bot! 🤖\nKoi rules nahi, seedha baat karein.")
+    await update.message.reply_text("Welcome to Tom Bot! 🤖")
 
 # 2. Universal Message Handler (User to Owner & Swipe-Reply)
 async def handle_incoming(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -29,7 +29,7 @@ async def handle_incoming(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_text = update.message.reply_to_message.text or update.message.reply_to_message.caption
                 target_id = int(reply_text.split("ID: ")[1].split("\n")[0])
                 await update.message.copy(chat_id=target_id)
-                await update.message.reply_text("✅ Jawab pahunch gaya!")
+                await update.message.reply_text("✅ Message sent!")
             except:
                 await update.message.reply_text("❌ Error: User ID nahi mili.")
         return
@@ -71,3 +71,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
