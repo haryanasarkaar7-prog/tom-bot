@@ -17,7 +17,6 @@ def load_data():
         try:
             with open(USERS_FILE, "r") as f:
                 content = json.load(f)
-                # Saari IDs ko integer mein convert karna matching ke liye
                 content["banned"] = [int(i) for i in content.get("banned", [])]
                 if "users" not in content: content["users"] = {}
                 if "maintenance" not in content: content["maintenance"] = False
@@ -33,12 +32,9 @@ def save_data(data_to_save):
     except Exception as e:
         logging.error(f"Error saving JSON: {e}")
 
-# Global data variable
 data = load_data()
-
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# --- HELPER: Extract ID ---
 def extract_id(text):
     if not text: return None
     match = re.search(r"ID:\s*(\d+)", text)
@@ -49,121 +45,88 @@ def extract_id(text):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     global data
-    data = load_data() # Refresh data
-
-    if data.get("maintenance") and user.id != ADMIN_ID:
-        await update.message.reply_text("🛠 **Bot Under Maintenance**\nPlease try again later.")
-        return
+    data = load_data()
 
     if user.id in data["banned"]:
         await update.message.reply_text("🚫 **Access Denied!**\nYou are banned from using this bot.")
+        return
+
+    if data.get("maintenance") and user.id != ADMIN_ID:
+        await update.message.reply_text("🛠 **Maintenance Mode**\nPlease try again later.")
         return
     
     uid_str = str(user.id)
     username_display = f"@{user.username}" if user.username else "None"
     data["users"][uid_str] = {"name": user.first_name, "username": username_display}
     save_data(data)
-    
-    await update.message.reply_text("Welcome to the TOM Bot! 🤖\n👀Send your message, and the owner will reply soon.✔✔")
+    await update.message.reply_text("Welcome! TO The TOM Bot 🤖\nSend your message here.✔")
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
     current_data = load_data()
-    
-    total = len(current_data["users"])
-    banned = len(current_data["banned"])
-    m_status = "ON 🚧" if current_data.get("maintenance") else "OFF ✅"
-    
     user_list = "📜 **User List:**\n"
     for uid, info in current_data["users"].items():
         status = "🚫" if int(uid) in current_data["banned"] else "✅"
         user_list += f"{status} {info['name']} | {info['username']} | ID: `{uid}`\n"
-
-    msg = f"📊 **Stats**\nTotal: {total}\nBanned: {banned}\nMaintenance: {m_status}\n\n{user_list}"
-    await update.message.reply_text(msg[:4096], parse_mode='Markdown')
+    await update.message.reply_text(user_list[:4096], parse_mode='Markdown')
 
 async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
     if not update.message.reply_to_message:
-        await update.message.reply_text("❌ Reply to user's message with /ban")
+        await update.message.reply_text("❌ Reply to a message with /ban")
         return
-
     target_id = extract_id(update.message.reply_to_message.text or update.message.reply_to_message.caption)
     if target_id:
         if target_id not in data["banned"]:
             data["banned"].append(target_id)
             save_data(data)
-            try:
-                await context.bot.send_message(chat_id=target_id, text="🚫 **Notice:** You have been banned by the owner.")
+            try: await context.bot.send_message(chat_id=target_id, text="🚫 You have been banned.")
             except: pass
-        await update.message.reply_text(f"🚫 User {target_id} has been BANNED.")
-    else:
-        await update.message.reply_text("❌ Error: Could not find ID.")
+        await update.message.reply_text(f"🚫 User {target_id} BANNED.")
 
 async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
     if not update.message.reply_to_message:
         await update.message.reply_text("❌ Reply with /unban")
         return
-
     target_id = extract_id(update.message.reply_to_message.text or update.message.reply_to_message.caption)
     if target_id and target_id in data["banned"]:
         data["banned"].remove(target_id)
         save_data(data)
-        try:
-            await context.bot.send_message(chat_id=target_id, text="✅ **Good News!** You have been unbanned.")
+        try: await context.bot.send_message(chat_id=target_id, text="✅ You have been unbanned.")
         except: pass
-        await update.message.reply_text(f"✅ User {target_id} has been UNBANNED.")
-    else:
-        await update.message.reply_text("❌ User not found in ban list.")
+        await update.message.reply_text(f"✅ User {target_id} UNBANNED.")
 
 async def send_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
-    msg_text = " ".join(context.args)
-    if not msg_text:
-        await update.message.reply_text("Usage: /all [message]")
-        return
-    
-    current_data = load_data()
+    msg = " ".join(context.args)
+    if not msg: return
     count = 0
+    current_data = load_data()
     for uid in list(current_data["users"].keys()):
         try:
-            u_id = int(uid)
-            if u_id not in current_data["banned"]:
-                await context.bot.send_message(chat_id=u_id, text=f"📢 **ANNOUNCEMENT**\n\n{msg_text}")
+            if int(uid) not in current_data["banned"]:
+                await context.bot.send_message(chat_id=int(uid), text=f"📢 **ANNOUNCEMENT**\n\n{msg}")
                 count += 1
         except: continue
     await update.message.reply_text(f"✅ Sent to {count} users.")
-
-async def maintenance_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
-    data["maintenance"] = True
-    save_data(data)
-    await update.message.reply_text("🚧 Maintenance Mode ON")
-
-async def maintenance_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
-    data["maintenance"] = False
-    save_data(data)
-    await update.message.reply_text("✅ Maintenance Mode OFF")
 
 # --- MESSAGE HANDLER ---
 async def handle_incoming(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     global data
-    data = load_data() # Har message par fresh data check
+    data = load_data()
 
-    # 1. Ban Check (User ko block karne ke liye)
+    # REPEATED BAN CHECK (Yahan change kiya hai)
     if user.id in data["banned"] and user.id != ADMIN_ID:
-        # Bot koi reply nahi dega aur message forward nahi karega (Silent Block)
+        await update.message.reply_text("🚫 **Access Denied!**\nYou have been banned from using this bot.")
         return
 
-    # 2. Maintenance Check
+    # Maintenance Check
     if data.get("maintenance") and user.id != ADMIN_ID:
-        await update.message.reply_text("🛠 Maintenance in progress.")
+        await update.message.reply_text("🛠 Under Maintenance.")
         return
 
-    # 3. Admin Response Logic
     if user.id == ADMIN_ID:
         if update.message.reply_to_message:
             if update.message.text and update.message.text.startswith("/"): return
@@ -173,7 +136,7 @@ async def handle_incoming(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("✅ Sent!")
         return
 
-    # 4. User Message Forwarding & Auto-Register
+    # Auto-Register & Forward
     uid_str = str(user.id)
     username_disp = f"@{user.username}" if user.username else "None"
     if uid_str not in data["users"]:
@@ -183,25 +146,21 @@ async def handle_incoming(update: Update, context: ContextTypes.DEFAULT_TYPE):
     header = f"📩 **NEW MESSAGE**\n\n👤 Name: {user.first_name}\n🆔 ID: {user.id}\n🔗 User: {username_disp}\n⚡ [Chat](tg://user?id={user.id})"
     await context.bot.send_message(chat_id=ADMIN_ID, text=header, parse_mode='Markdown')
     await update.message.copy(chat_id=ADMIN_ID)
-    await update.message.reply_text("Sent! The owner will reply soon.")
+    await update.message.reply_text("Sent! Owner will reply soon.")
 
 def main():
     PORT = int(os.environ.get('PORT', 8443))
     app = Application.builder().token(BOT_TOKEN).build()
-    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("all", send_all))
     app.add_handler(CommandHandler("ban", ban_user))
     app.add_handler(CommandHandler("unban", unban_user))
-    app.add_handler(CommandHandler("maintenance_on", maintenance_on))
-    app.add_handler(CommandHandler("maintenance_off", maintenance_off))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_incoming))
 
     RENDER_URL = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
     if RENDER_URL:
-        app.run_webhook(listen="0.0.0.0", port=PORT, url_path=BOT_TOKEN, 
-                        webhook_url=f"https://{RENDER_URL}/{BOT_TOKEN}")
+        app.run_webhook(listen="0.0.0.0", port=PORT, url_path=BOT_TOKEN, webhook_url=f"https://{RENDER_URL}/{BOT_TOKEN}")
     else: app.run_polling()
 
 if __name__ == '__main__':
