@@ -48,7 +48,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = load_data()
 
     if user.id in data["banned"]:
-        await update.message.reply_text("🚫 **Access Denied!**\nYou are banned from using this bot.")
+        await update.message.reply_text("🚫 **Access Denied!**\nYou have been banned from using this bot.")
         return
 
     if data.get("maintenance") and user.id != ADMIN_ID:
@@ -59,12 +59,26 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username_display = f"@{user.username}" if user.username else "None"
     data["users"][uid_str] = {"name": user.first_name, "username": username_display}
     save_data(data)
-    await update.message.reply_text("Welcome! TO The TOM Bot 🤖\nSend your message here.✔")
+    await update.message.reply_text("Welcome! to the TOM Bot🤖\nSend your message here.")
+
+# --- MAINTENANCE ON/OFF (The Fix) ---
+async def maintenance_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID: return
+    data["maintenance"] = True
+    save_data(data)
+    await update.message.reply_text("🚧 **Maintenance Mode is now ON.**")
+
+async def maintenance_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID: return
+    data["maintenance"] = False
+    save_data(data)
+    await update.message.reply_text("✅ **Maintenance Mode is now OFF.**")
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
     current_data = load_data()
-    user_list = "📜 **User List:**\n"
+    m_status = "ON 🚧" if current_data.get("maintenance") else "OFF ✅"
+    user_list = f"📊 **Stats**\nMaintenance: {m_status}\n\n📜 **User List:**\n"
     for uid, info in current_data["users"].items():
         status = "🚫" if int(uid) in current_data["banned"] else "✅"
         user_list += f"{status} {info['name']} | {info['username']} | ID: `{uid}`\n"
@@ -117,12 +131,10 @@ async def handle_incoming(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global data
     data = load_data()
 
-    # REPEATED BAN CHECK (Yahan change kiya hai)
     if user.id in data["banned"] and user.id != ADMIN_ID:
         await update.message.reply_text("🚫 **Access Denied!**\nYou have been banned from using this bot.")
         return
 
-    # Maintenance Check
     if data.get("maintenance") and user.id != ADMIN_ID:
         await update.message.reply_text("🛠 Under Maintenance.")
         return
@@ -136,7 +148,6 @@ async def handle_incoming(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("✅ Sent!")
         return
 
-    # Auto-Register & Forward
     uid_str = str(user.id)
     username_disp = f"@{user.username}" if user.username else "None"
     if uid_str not in data["users"]:
@@ -156,6 +167,9 @@ def main():
     app.add_handler(CommandHandler("all", send_all))
     app.add_handler(CommandHandler("ban", ban_user))
     app.add_handler(CommandHandler("unban", unban_user))
+    # Yahan maine dono maintenance commands register kar di hain
+    app.add_handler(CommandHandler("maintenance_on", maintenance_on))
+    app.add_handler(CommandHandler("maintenance_off", maintenance_off))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_incoming))
 
     RENDER_URL = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
