@@ -52,7 +52,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data.get("maintenance") and user.id != ADMIN_ID:
-        await update.message.reply_text("🛠 **Maintenance Mode**\nPlease try again later.")
+        await update.message.reply_text("🛠 **Maintenance Mode**\nBot is currently under maintenance.We willbe back soon bro 😎.")
         return
     
     uid_str = str(user.id)
@@ -179,3 +179,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
